@@ -1,6 +1,6 @@
 Original Author @TonybynMp4
 
-LAST EDIT March 2025. Resource was reworked for updated QBOX and OX frameworks
+LAST EDIT March 2025. Resource was reworked for updated QBOX and OX frameworks. Fork created and updates published for portfolio purposes
 
 # A Burgershot job for the Qbox Framework
 
