@@ -1,8 +1,17 @@
 local sharedConfig = require 'config.shared'
+local chihuahua = require 'config.chihuahua'
+local burgershot = require 'config.burgershot'
 lib.versionCheck('TonybynMp4/y_burgershot')
 
-local function hasIngredients(source, recipe, recipeType)
-    local Recipe = sharedConfig.recipes[recipeType][recipe]
+local function hasIngredients(source, recipe, recipeType, business)
+    local Recipe = {}
+
+    if business == 'burgershot' then 
+        Recipe = burgershot.burgerShotRecipes[recipeType][recipe]
+    elseif business == 'chihuahua' then
+        Recipe = chihuahua.chihuahuaRecipes[recipeType][recipe]
+    end
+    
     if not Recipe then
         lib.print.warn("missing recipe or wrong recipeType?", recipeType, recipe)
         return false
@@ -18,12 +27,12 @@ end
 
 lib.callback.register('y_burgershot:server:hasIngredients', hasIngredients)
 
-RegisterNetEvent('y_burgershot:server:CraftMeal', function(recipe, recipeType)
+RegisterNetEvent('y_burgershot:server:CraftMeal', function(recipe, recipeType, business)
     local source = source
-    local Recipe = sharedConfig.recipes[recipeType][recipe]
+    local Recipe = burgershot.burgerShotRecipes[recipeType][recipe] or chihuahua.chihuahuaRecipes[recipeType][recipe]
     if not Recipe then return end
 
-    if not hasIngredients(source, recipe, recipeType) then
+    if not hasIngredients(source, recipe, recipeType, business) then
         return exports.qbx_core:Notify(source, locale('error.missing_ingredients'), 'error')
     end
 
@@ -47,37 +56,17 @@ RegisterNetEvent('y_burgershot:server:CraftMeal', function(recipe, recipeType)
     exports.ox_inventory:AddItem(source, recipe, 1)
 end)
 
-local stashes = {
-    {
-        id = 'burgershot_tray',
-        label = locale('info.tray'),
-        slots = 5,
-        weight = 10000,
-        groups = nil,
-        coords = sharedConfig.coords.tray.coords,
-    },
-    {
-        id = 'burgershot_hotstorage',
-        label = locale('info.storage'),
-        slots = 50,
-        weight = 75000,
-        groups = { ['burgershot'] = 0},
-        coords = sharedConfig.coords.hotstorage.coords,
-    },
-    {
-        id = 'burgershot_storage',
-        label = locale('info.storage'),
-        slots = 20,
-        weight = 100000,
-        groups = { ['burgershot'] = 0},
-        coords = sharedConfig.coords.storage.coords,
-    }
-}
+RegisterNetEvent('wp-foodjobs:server:waterCup', function(type)
+    local source = source
+    if type == 'waterCup' then
+        return exports.ox_inventory:AddItem(source, 'water_cup', 1)
+    end
+end)
 
 AddEventHandler('onResourceStart', function(resource)
     if resource == GetCurrentResourceName() then
-        for _, stash in pairs(stashes) do
-            exports.ox_inventory:RegisterStash(stash.id, stash.label, stash.slots, stash.weight, stash.owner)
+        for i, stash in pairs(sharedConfig.invStorage) do
+            exports.ox_inventory:RegisterStash(i, stash.label or i, stash.slots, stash.weight, stash.owner)
         end
     end
 end)
