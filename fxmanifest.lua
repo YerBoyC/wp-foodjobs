@@ -1,9 +1,9 @@
 fx_version 'cerulean'
 game 'gta5'
 
-author 'Tonybyn_Mp4'
-description 'Burgershot Job for the Qbox framework'
-repository 'https://github.com/TonybynMp4/y_burgershot'
+author ' Original Author --> Tonybyn_Mp4. Modified by Waypoint'
+description 'Burgershot Job for Waypoint RP'
+repository 'https://github.com/TonybynMp4/y_burgershot' -- original repo
 version '1.3.4'
 
 ox_lib 'locale'
@@ -24,8 +24,16 @@ server_scripts {
 files {
     'locales/*.json',
     'config/client.lua',
-    'config/shared.lua'
+    'config/shared.lua',
+    'config/chihuahua.lua',
+    'config/burgershot.lua'
 }
+
+data_file 'DLC_ITYP_REQUEST' 'stream/alca_anim_eat.ytyp'
+
+
+dependency '/assetpacks'
+dependency '/assetpacks'
 
 lua54 'yes'
 use_experimental_fxv2_oal 'yes'

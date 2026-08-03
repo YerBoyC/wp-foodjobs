@@ -11,7 +11,7 @@
     "progress": {
         "cooking": "You are cooking..",
         "making_drink": "You are making a drink..",
-        "making_burger": "You are making a burger.."
+        "making_burger": "Assembling your food.."
     },
     "info": {
         "craft": "Craft something..",
@@ -22,7 +22,7 @@
         "storage": "Storage"
     },
     "menus": {
-        "burger_title": "BurgerShot Kitchen",
-        "drinks_title": "BurgerShot Drinks"
+        "burger_title": "Kitchen Menu",
+        "drinks_title": "Drinks Menu"
     }
 }

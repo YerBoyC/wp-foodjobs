@@ -1,29 +1,56 @@
 local onDuty = QBX?.PlayerData?.job?.onduty
+local playerJob = QBX?.PlayerData?.job?.name
 local config = require 'config.client'
 local sharedConfig = require 'config.shared'
-
+local chihuahua = require 'config.chihuahua'
+local burgershot = require 'config.burgershot'
+local blip = {}
 RegisterNetEvent('QBCore:Client:SetDuty', function(duty)
 	onDuty = duty
+	print('setDuty onDuty = ', onDuty)
 end)
 
+local function createBlips()
+	for k, v in pairs(sharedConfig.blips) do
+		blip = AddBlipForCoord(sharedConfig.blips[k].coords.x, sharedConfig.blips[k].coords.y, sharedConfig.blips[k].coords.z)
+		SetBlipSprite(blip, sharedConfig.blips[k].sprite)
+		SetBlipAsShortRange(blip, true)
+		SetBlipScale(blip, sharedConfig.blips[k].scale)
+		SetBlipColour(blip, sharedConfig.blips[k].color)
+		BeginTextCommandSetBlipName('STRING')
+		AddTextComponentString(sharedConfig.blips[k].label)
+		EndTextCommandSetBlipName(blip)
+	end
+end
+
 local function getDescription(ingredients)
-	local desc = ""
+	local desc = ''
+
 	for _, v in pairs(ingredients) do
-		if not config.ingredientsLabels[v.item] then
+		if not exports.ox_inventory:Items(v?.item)['label'] then
 			lib.print.warn("Missing ingredient label for: ", v.item)
 		end
-		desc = desc .. (config.ingredientsLabels?[v.item] or v?.item) .. " x" .. (v?.amount or 1) .. " | "
+		desc = desc .. (exports.ox_inventory:Items(v?.item)['label']) .. " x" .. (v?.amount or 1) .. " | "
 	end
 	desc = string.sub(desc, 1, -4)
 	return desc
 end
 
-local function craftPrep(recipe)
+local function craftPrep(recipe, business)
 	if not onDuty then
 		return exports.qbx_core:Notify(locale('error.notOnDuty'), "error")
 	end
+	local ingredient = nil
 
-	local HasIngredients = lib.callback.await('y_burgershot:server:hasIngredients', false, recipe, "prep")
+	if recipe == 'steak_1' or recipe == 'steak_2' then
+		ingredient = 'steak'
+		recipe = ingredient
+	elseif recipe == 'chicken_1' or recipe == 'chicken_2' then 
+		ingredient = 'chicken'
+		recipe = ingredient
+	end
+
+	local HasIngredients = lib.callback.await('y_burgershot:server:hasIngredients', false, recipe, "prep", business)
 	if not HasIngredients then
 		return exports.qbx_core:Notify(locale("error.missing_ingredients"), 'error', 7500)
 	end
@@ -49,18 +76,18 @@ local function craftPrep(recipe)
 			rot = vec3(175.0, 160.0, 0.0)
 		},
 	}) then
-		TriggerServerEvent('y_burgershot:server:CraftMeal', recipe, "prep")
+		TriggerServerEvent('y_burgershot:server:CraftMeal', recipe, "prep", business)
 	else
 		exports.qbx_core:Notify(locale('error.cancel'), 'error', 7500)
 	end
 end
 
-local function craftDrink(recipe)
+local function craftDrink(recipe, business)
 	if not onDuty then
 		return exports.qbx_core:Notify(locale('error.notOnDuty'), "error")
 	end
 
-	local HasIngredients = lib.callback.await('y_burgershot:server:hasIngredients', false, recipe, "drinks")
+	local HasIngredients = lib.callback.await('y_burgershot:server:hasIngredients', false, recipe, "drinks", business)
 	if not HasIngredients then
 		return exports.qbx_core:Notify(locale("error.missing_ingredients"), 'error', 7500)
 	end
@@ -75,19 +102,23 @@ local function craftDrink(recipe)
 			combat = true,
 			move = true,
 		},
+		anim = {
+			dict = 'mp_common',
+			clip = 'givetake1_a'
+		},
 	}) then
-		TriggerServerEvent('y_burgershot:server:CraftMeal', recipe, "drinks")
+		TriggerServerEvent('y_burgershot:server:CraftMeal', recipe, "drinks", business)
 	else
 		exports.qbx_core:Notify(locale('error.cancel'), 'error', 7500)
 	end
 end
 
-local function craftMeal(recipe)
+local function craftMeal(recipe, business)
 	if not onDuty then
 		return exports.qbx_core:Notify(locale('error.notOnDuty'), "error")
 	end
 
-	local HasIngredients = lib.callback.await('y_burgershot:server:hasIngredients', false, recipe, 'burgers')
+	local HasIngredients = lib.callback.await('y_burgershot:server:hasIngredients', false, recipe, 'assembleFood', business)
 	if not HasIngredients then
 		return exports.qbx_core:Notify(locale("error.missing_ingredients"), 'error', 7500)
 	end
@@ -108,240 +139,199 @@ local function craftMeal(recipe)
 			clip = 'givetake1_a'
 		},
 	}) then
-		TriggerServerEvent('y_burgershot:server:CraftMeal', recipe, 'burgers')
+		TriggerServerEvent('y_burgershot:server:CraftMeal', recipe, 'assembleFood', business)
 	else
 		exports.qbx_core:Notify(locale('error.cancel'), 'error', 7500)
 	end
 end
 
-local function openDrinksMenu()
-	local Recipes = sharedConfig.recipes.drinks
+local function openDrinksMenu(business)
+	local recipes = {}
 	-- ox_lib menu that has all the recipes and triggers the craft function
 	local options = {}
 
-	for k, v in pairs(Recipes) do
+	if business == 'burgershot' then
+		recipes = burgershot.burgerShotRecipes.drinks
+	elseif business == 'chihuahua' then
+		recipes = chihuahua.chihuahuaRecipes.drinks
+	elseif config.scriptDebug then
+		exports.qbx_core:Notify('bussiness not registered in openDrinksMenu', "error")
+	end
+
+	for k, v in pairs(recipes) do
 		local description = getDescription(v.ingredients)
 		options[#options + 1] = {
 			title = v.label,
 			description = description,
 			icon = 'utensils',
 			onSelect = function()
-				craftDrink(k)
+				craftDrink(k, business)
 			end,
 		}
 	end
 
 	lib.registerContext({
-		id = 'BurgerShot_CraftMenu',
+		id = ('%s_CraftDrinkMenu'):format(business),
 		title = locale('menus.drinks_title'),
 		options = options,
 	})
-	lib.showContext('BurgerShot_CraftMenu')
+	lib.showContext(('%s_CraftDrinkMenu'):format(business))
 end
 
-local function openBurgerMenu()
-	local Recipes = sharedConfig.recipes.burgers
+local function openHotFoodMenu(business)
+	local recipes = {}
 	local options = {}
 
-	for k, v in pairs(Recipes) do
+	if business == 'burgershot' then
+		recipes = burgershot.burgerShotRecipes.assembleFood
+	elseif business == 'chihuahua' then
+		recipes = chihuahua.chihuahuaRecipes.assembleFood
+	elseif config.scriptDebug then
+		exports.qbx_core:Notify('bussiness not registered in openHotFoodMenu', "error")
+	end
+
+	for k, v in pairs(recipes) do
 		local description = getDescription(v.ingredients)
 		options[#options + 1] = {
 			title = v.label,
 			description = description,
 			icon = 'utensils',
 			onSelect = function()
-				craftMeal(k)
+				craftMeal(k, business)
 			end,
 		}
 	end
 
 	lib.registerContext({
-		id = 'BurgerShot_CraftMenu',
+		id = ('%s_CraftMenu'):format(business),
 		title = locale('menus.burger_title'),
 		options = options,
 	})
-	lib.showContext('BurgerShot_CraftMenu')
+	lib.showContext(('%s_CraftMenu'):format(business))
 end
 
+local function useWater(type)
+	if type == 'waterCup' then
+		if lib.progressBar({
+			duration = 5000,
+			label = 'Filling Water',
+			useWhileDead = false,
+			canCancel = true,
+			disable = {
+				car = true,
+				move = true,
+			},
+			anim = {
+				dict = 'mp_arresting',
+				clip = 'a_uncuff'
+			},
+		})then TriggerServerEvent('wp-foodjobs:server:waterCup', type) return end
+	else
+		if lib.progressBar({
+			duration = 5000,
+			label = 'Washing Nasty Hands',
+			useWhileDead = false,
+			canCancel = true,
+			disable = {
+				car = true,
+				move = true,
+			},
+			anim = {
+				dict = 'mp_arresting',
+				clip = 'a_uncuff'
+			},
+		})then return end--[[ then print('Do stuff when complete') else print('Do stuff when cancelled') ]] -- remove RETURN and input this line to do stuff after.
+	end
+end
+local function triggerMenu(menu, business)
+	if menu == 'duty' then 
+		onDuty = not onDuty
+		TriggerServerEvent("QBCore:ToggleDuty")
+	elseif menu == 'washHands' or menu == 'washHands2' or menu == 'waterCup' then
+		useWater(menu)
+	elseif menu == 'assembleFood' then
+		openHotFoodMenu(business)
+	elseif menu == 'drinks' then
+		openDrinksMenu(business)
+	else -- steak, fries, chicken 
+		craftPrep(menu, business)
+	end 
+end
 CreateThread(function()
-	exports.ox_target:addBoxZone({
-		name = "BurgerShot_Duty",
-		coords = sharedConfig.coords.duty.coords,
-		size = sharedConfig.coords.duty.size,
-		rotation = sharedConfig.coords.duty.rotation,
-		debug = config.zoneDebug,
-		options = {
-			{
-				type = "client",
-				onSelect = function()
-					onDuty = not onDuty
-					TriggerServerEvent("QBCore:ToggleDuty")
-				end,
-				icon = "fa fa-clipboard",
-				label = locale('info.duty'),
-				distance = 3.0,
-				groups = "burgershot",
-			}
-		}
-	})
 
-	exports.ox_target:addBoxZone({
-		name = "BurgerShot_Cook",
-		coords = sharedConfig.coords.cook.coords,
-		size = sharedConfig.coords.cook.size,
-		rotation = sharedConfig.coords.cook.rotation,
-		debug = config.zoneDebug,
-		options = {
-			{
-				type = "client",
-				onSelect = function()
-					craftPrep("steak")
-				end,
-				icon = "fa fa-hamburger",
-				label = locale('info.burger_cook'),
-				distance = 1.5,
-				groups = "burgershot",
-			}
-		}
-	})
+	createBlips()
 
-	exports.ox_target:addBoxZone({
-		name = "BurgerShot_Cook_2",
-		coords = sharedConfig.coords.cook_2.coords,
-		size = sharedConfig.coords.cook_2.size,
-		rotation = sharedConfig.coords.cook_2.rotation,
-		debug = config.zoneDebug,
-		options = {
-			{
-				type = "client",
-				onSelect = function()
-					craftPrep("steak")
-				end,
-				icon = "fa fa-hamburger",
-				label = locale('info.burger_cook'),
-				distance = 1.5,
-				groups = "burgershot",
+	-- Burger Shot Zones excluding storage
+	for k, v in pairs(burgershot.burgerShotCoords) do
+		exports.ox_target:addBoxZone({
+			name = ("BurgerShot_%s"):format(k),
+			coords = v.coords,
+			size = v.size,
+			rotation = v.rotation,
+			debug = config.zoneDebug,
+			options = {
+				{
+					type = "client",
+					onSelect = function()
+						triggerMenu(k, playerJob)
+					end,
+					icon = ('%s'):format(v.targetIcon),
+					label = ('%s'):format(v.targetLabel or k),
+					distance = 1.5,
+					groups = 'burgershot',
+				}
 			}
-		}
-	})
+		})
+	end
 
-	exports.ox_target:addBoxZone({
-		name = "BurgerShot_Fry",
-		coords = sharedConfig.coords.fry.coords,
-		size = sharedConfig.coords.fry.size,
-		rotation = sharedConfig.coords.fry.rotation,
-		debug = config.zoneDebug,
-		options = {
-			{
-				type = "client",
-				onSelect = function()
-					craftPrep("fries")
-				end,
-				icon = "fa fa-hamburger",
-				label = locale('info.fries_cook'),
-				distance = 1.5,
-				groups = "burgershot",
+		-- Chihuahua Zones excluding storage
+	for i, v in pairs(chihuahua.chihuahuaCoords) do
+		exports.ox_target:addBoxZone({
+			name = ("Chihuahua_%s"):format(i),
+			coords = v.coords,
+			size = v.size,
+			rotation = v.rotation,
+			debug = config.zoneDebug,
+			options = {
+				{
+					type = "client",
+					onSelect = function()
+						triggerMenu(i, playerJob)
+					end,
+					icon = ('%s'):format(v.targetIcon),
+					label = ('%s'):format(v.targetLabel or i),
+					distance = 1.5,
+					groups = 'chihuahua',
+				}
 			}
-		}
-	})
+		})
+	end
 
-	exports.ox_target:addBoxZone({
-		name = "BurgerShot_Burgers_Craft",
-		coords = sharedConfig.coords.burgers.coords,
-		size = sharedConfig.coords.burgers.size,
-		rotation = sharedConfig.coords.burgers.rotation,
-		debug = config.zoneDebug,
-		options = {
-			{
-				type = "client",
-				onSelect = openBurgerMenu,
-				icon = "fa fa-utensils",
-				label = locale('info.craft'),
-				distance = 1.5,
-				groups = "burgershot",
+	-- Inventory Storage Areas. Including public and job specific in shared config.
+	for n, storage in pairs(sharedConfig.invStorage) do
+		exports.ox_target:addBoxZone({
+			name = ("jobstorage_%s"):format(n),
+			coords = storage.coords,
+			size = storage.size,
+			rotation = storage.rotation,
+			debug = config.zoneDebug,
+			options = {
+				{
+					type = "client",
+					onSelect = function()
+						exports.ox_inventory:openInventory('stash', storage.id or n)
+					end,
+					icon = storage.icon or "fa fa-clipboard",
+					label = storage.label or 'Food Tray',
+					distance = storage.distance or 1.5,
+					groups = storage.groups,
+				}
 			}
-		}
-	})
-
-	exports.ox_target:addBoxZone({
-		name = "BurgerShot_Drinks_Craft",
-		coords = sharedConfig.coords.drinks.coords,
-		size = sharedConfig.coords.drinks.size,
-		rotation = sharedConfig.coords.drinks.rotation,
-		debug = config.zoneDebug,
-		options = {
-			{
-				type = "client",
-				onSelect = openDrinksMenu,
-				icon = "fa fa-utensils",
-				label = locale('info.craft'),
-				distance = 1.5,
-				groups = "burgershot",
-			}
-		}
-	})
-
-	exports.ox_target:addBoxZone({
-		name = "burger_tray",
-		coords = sharedConfig.coords.tray.coords,
-		size = sharedConfig.coords.tray.size,
-		rotation = sharedConfig.coords.tray.rotation,
-		debug = config.zoneDebug,
-		options = {
-			{
-				type = "client",
-				onSelect = function()
-					exports.ox_inventory:openInventory('stash', 'burgershot_tray')
-				end,
-				icon = "fa fa-clipboard",
-				label = locale('info.tray'),
-				distance = 1.5,
-				groups = "burgershot",
-			}
-		}
-	})
-
-	exports.ox_target:addBoxZone({
-		name = "burgershot_hotstorage",
-		coords = sharedConfig.coords.hotstorage.coords,
-		size = sharedConfig.coords.hotstorage.size,
-		rotation = sharedConfig.coords.hotstorage.rotation,
-		debug = config.zoneDebug,
-		options = {
-			{
-				type = "client",
-				onSelect = function()
-					exports.ox_inventory:openInventory('stash', 'burgershot_hotstorage')
-				end,
-				icon = "fa fa-box",
-				label = locale('info.storage'),
-				distance = 1.5,
-				groups = "burgershot",
-			}
-		}
-	})
-
-	exports.ox_target:addBoxZone({
-		name = "burgershot_storage",
-		coords = sharedConfig.coords.storage.coords,
-		size = sharedConfig.coords.storage.size,
-		rotation = sharedConfig.coords.storage.rotation,
-		debug = config.zoneDebug,
-		options = {
-			{
-				type = "client",
-				onSelect = function()
-					exports.ox_inventory:openInventory('stash', 'burgershot_storage')
-				end,
-				icon = "fa fa-box",
-				label = locale('info.storage'),
-				distance = 2,
-				groups = "burgershot",
-			}
-		}
-	})
+		})
+	end
 end)
 
 AddEventHandler('QBCore:Client:OnPlayerLoaded', function()
 	onDuty = QBX?.PlayerData?.job?.onduty
+	playerJob = QBX?.PlayerData?.job?.name
 end)
