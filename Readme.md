@@ -1,3 +1,7 @@
+Original Author @TonybynMp4
+
+LAST EDIT March 2025. Resource was reworked for updated QBOX and OX frameworks
+
 # A Burgershot job for the Qbox Framework
 
 Credits to @Zach488 for the images & a few bits of code
